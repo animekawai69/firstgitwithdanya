@@ -8,138 +8,82 @@ vars:
 
   MODULES: assembly inventory order payment platform iam notification
 
-  # Пути (разные для shell)
-  BIN_DIR:
-    sh: echo "{{.ROOT_DIR}}/bin"
-    powershell: echo "{{.ROOT_DIR}}\bin"
-
-  GOLANGCI_LINT:
-    sh: echo "{{.BIN_DIR}}/golangci-lint"
-    powershell: echo "{{.BIN_DIR}}\golangci-lint.exe"
-
-  GCI:
-    sh: echo "{{.BIN_DIR}}/gci"
-    powershell: echo "{{.BIN_DIR}}\gci.exe"
-
-  GOFUMPT:
-    sh: echo "{{.BIN_DIR}}/gofumpt"
-    powershell: echo "{{.BIN_DIR}}\gofumpt.exe"
+  BIN_DIR: '{{.ROOT_DIR}}/bin'
 
 tasks:
-
-  # ---------------- FORMATTERS ----------------
 
   install-formatters:
     desc: "Устанавливает gofumpt и gci (Windows + Linux)"
     cmds:
-      - sh: |
-          set -e
+      - cmd: |
           mkdir -p {{.BIN_DIR}}
-
-          if [ ! -f "{{.GOFUMPT}}" ]; then
+          if [ ! -f "{{.BIN_DIR}}/gofumpt" ]; then
             echo "📦 Installing gofumpt {{.GOFUMPT_VERSION}}"
             GOBIN={{.BIN_DIR}} go install mvdan.cc/gofumpt@{{.GOFUMPT_VERSION}}
           fi
-
-          if [ ! -f "{{.GCI}}" ]; then
+          if [ ! -f "{{.BIN_DIR}}/gci" ]; then
             echo "📦 Installing gci {{.GCI_VERSION}}"
             GOBIN={{.BIN_DIR}} go install github.com/daixiang0/gci@{{.GCI_VERSION}}
           fi
+        platforms: [linux, darwin]
 
-      - powershell: |
-          New-Item -ItemType Directory -Force "{{.BIN_DIR}}" | Out-Null
-
-          if (!(Test-Path "{{.GOFUMPT}}")) {
+      - cmd: |
+          if (!(Test-Path "{{.BIN_DIR}}")) {
+            New-Item -ItemType Directory -Force "{{.BIN_DIR}}" | Out-Null
+          }
+          if (!(Test-Path "{{.BIN_DIR}}\gofumpt.exe")) {
             Write-Host "📦 Installing gofumpt {{.GOFUMPT_VERSION}}"
             $env:GOBIN="{{.BIN_DIR}}"
             go install mvdan.cc/gofumpt@{{.GOFUMPT_VERSION}}
           }
-
-          if (!(Test-Path "{{.GCI}}")) {
+          if (!(Test-Path "{{.BIN_DIR}}\gci.exe")) {
             Write-Host "📦 Installing gci {{.GCI_VERSION}}"
             $env:GOBIN="{{.BIN_DIR}}"
             go install github.com/daixiang0/gci@{{.GCI_VERSION}}
           }
-
-  format:
-    desc: "Форматирует проект gofumpt + gci"
-    deps: [ install-formatters ]
-    cmds:
-      - sh: |
-          set -e
-          for module in {{.MODULES}}; do
-            if [ -d "$module" ]; then
-              echo "🧼 Formatting $module"
-              find "$module" -type f -name '*.go' ! -path '*/mocks/*' -exec {{.GOFUMPT}} -extra -w {} +
-              find "$module" -type f -name '*.go' ! -path '*/mocks/*' -exec {{.GCI}} write \
-                -s standard \
-                -s default \
-                -s "prefix(github.com/olezhek28/microservices-course-olezhek-solution)" {} +
-            fi
-          done
-
-      - powershell: |
-          $modules = "{{.MODULES}}".Split(" ")
-          foreach ($module in $modules) {
-            if (Test-Path $module) {
-              Write-Host "🧼 Formatting $module"
-
-              Get-ChildItem $module -Recurse -Filter *.go |
-                Where-Object { $_.FullName -notmatch '\\mocks\\' } |
-                ForEach-Object {
-                  & "{{.GOFUMPT}}" -extra -w $_.FullName
-                  & "{{.GCI}}" write `
-                    -s standard `
-                    -s default `
-                    -s "prefix(github.com/olezhek28/microservices-course-olezhek-solution)" `
-                    $_.FullName
-                }
-            }
-          }
-
-  # ---------------- LINT ----------------
+        platforms: [windows]
 
   install-golangci-lint:
     desc: "Устанавливает golangci-lint"
     cmds:
-      - sh: |
-          set -e
+      - cmd: |
           mkdir -p {{.BIN_DIR}}
-
-          if [ ! -f "{{.GOLANGCI_LINT}}" ]; then
+          if [ ! -f "{{.BIN_DIR}}/golangci-lint" ]; then
             echo "📦 Installing golangci-lint {{.GOLANGCI_LINT_VERSION}}"
             GOBIN={{.BIN_DIR}} go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
           fi
+        platforms: [linux, darwin]
 
-      - powershell: |
-          New-Item -ItemType Directory -Force "{{.BIN_DIR}}" | Out-Null
-
-          if (!(Test-Path "{{.GOLANGCI_LINT}}")) {
+      - cmd: |
+          if (!(Test-Path "{{.BIN_DIR}}")) {
+            New-Item -ItemType Directory -Force "{{.BIN_DIR}}" | Out-Null
+          }
+          if (!(Test-Path "{{.BIN_DIR}}\golangci-lint.exe")) {
             Write-Host "📦 Installing golangci-lint {{.GOLANGCI_LINT_VERSION}}"
             $env:GOBIN="{{.BIN_DIR}}"
             go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
           }
+        platforms: [windows]
 
   lint:
     desc: "Запускает golangci-lint для всех модулей"
     deps: [ install-golangci-lint ]
     cmds:
-      - sh: |
-          set -e
+      - cmd: |
           for module in {{.MODULES}}; do
             if [ -d "$module" ]; then
               echo "🔍 Linting $module"
-              {{.GOLANGCI_LINT}} run "$module/..." --config=.golangci.yml
+              {{.BIN_DIR}}/golangci-lint run "$module/..." --config=.golangci.yml
             fi
           done
+        platforms: [linux, darwin]
 
-      - powershell: |
-          $ErrorActionPreference = "Stop"
+      - cmd: |
           $modules = "{{.MODULES}}".Split(" ")
-
           foreach ($module in $modules) {
             if (Test-Path $module) {
               Write-Host "🔍 Linting $module"
-              & "{{.GOLANGCI_LINT}}" run "$module/..." --config=.golangci.yml
+              & "{{.BIN_DIR}}\golangci-lint.exe" run "$module/..." --config=.golangci.yml
             }
           }
+        platforms: [windows]
